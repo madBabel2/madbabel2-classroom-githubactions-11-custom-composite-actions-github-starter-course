@@ -1,0 +1,93 @@
+name: Autograding Tests
+on:
+  repository_dispatch:
+  workflow_dispatch:
+permissions:
+  checks: write
+  actions: read
+  contents: read
+
+
+jobs:
+  get-workflow-id:
+    outputs:
+      run_id: ${{steps.get_workflow.outputs.run_id}}
+    runs-on: ubuntu-latest
+
+    steps:          
+      - name: Get workFlow Run
+        id: get_workflow
+        uses: madBabel/get-run-id-of-wf-action@v2
+        with:
+            workflow-file: 'workflow.yml'    
+            status: 'success'
+
+  checkJobs:   
+    needs: get-workflow-id
+    runs-on: ubuntu-latest    
+    outputs: 
+      ubuntuExecuted: ${{steps.check_Steps_for_build.outputs.stepsExecuted}}      
+    steps:     
+
+      - name: Check step executed for build
+        id: check_Steps_for_build
+        uses: madBabel/check-jobs-steps-gha-action@v3
+        with:
+          run-id: ${{needs.get-workflow-id.outputs.run_id}}
+          job-to-execute: build
+          steps-to-execute: Build Node
+             
+          
+
+  autograding-reporter:    
+      needs: [checkJobs,get-workflow-id]
+      runs-on: ubuntu-latest    
+      steps:           
+   
+      - name: Get logs of the latest workflow run
+        id: get_logs
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const run_id = ${{needs.get-workflow-id.outputs.run_id}}
+            const logs = await github.rest.actions.downloadWorkflowRunLogs({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id
+            });
+        
+            const zipUrl = logs.url; 
+
+            if (!zipUrl) {
+              core.setFailed('ZIP URL not found in logs.');
+            }
+            
+            core.setOutput('zip_url', zipUrl); // Envía la URL como salida para usar en el siguiente paso
+
+      - name: Download and unzip the file
+        if: steps.get_logs.outputs.zip_url != ''
+        run: |      
+          curl -L "${{ steps.get_logs.outputs.zip_url }}" -o downloaded_file.zip        
+          mkdir -p unzipped_files
+          unzip downloaded_file.zip -d unzipped_files
+          ls unzipped_files
+
+      - name: Run Autograding Tests for Node
+        uses: classroom-resources/autograding-io-grader@v1      
+        id: test1
+        with:
+            test-name: 'Test executed in Composite action'   
+            command: 'tail -n500 unzipped_files/build*/*Build*Node*.txt'
+            input: 'OK'
+            expected-output: '.*Test Suites: 1 passed*'
+            comparison-method: 'regex'
+            max-score: 100     
+    
+            
+      - name: Autograding Reporter
+        uses: classroom-resources/autograding-grading-reporter@v1     
+        with:
+           runners: test1
+        env:
+          TEST1_RESULTS: "${{ steps.test1.outputs.result }}"
+         
