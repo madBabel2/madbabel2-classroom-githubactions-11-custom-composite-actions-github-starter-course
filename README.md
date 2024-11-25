@@ -22,8 +22,7 @@ runs:
 4. Modificar el fichero workflow.yml:
    - Nombrar el flujo de trabajo 11 Custom Actions - Composite.
    - desencadenantes:
-     - workflow_dispatch: el workflow_dispatch también debería recibir un input llamado target-env, de tipo choice y con las siguientes opciones: dev, prod.
-   - Establecer la opción run-name del flujo de trabajo en 11 Custom Actions - Composite | env - 'recuperar el input target-env aquí'.   
+     - workflow_dispatch:   
    - Trabajos:
      - **build**:
        - Debería ejecutarse en ubuntu-latest.
